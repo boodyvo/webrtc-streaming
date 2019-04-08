@@ -1,0 +1,110 @@
+version: '3.2'
+services:
+  # --- Mongo database
+  mongo:
+    image: mongo:4.1
+    container_name: mongo
+    networks:
+      - default
+    ports:
+      - 27017
+
+  btcd:
+    image: btcd
+    build: services/btcd
+    container_name: btcd
+    volumes:
+      - ${MOUNT_PATH:-.}/services/btcd/files/btcd.conf:/root/.btcd/btcd.conf:rw
+      - ${MOUNT_PATH:-.}/data/btcd/data:/root/.btcd:rw
+      - ${MOUNT_PATH:-.}/rpc:/rpc:rw
+    networks:
+      - default
+    ports:
+      - 18334:18334
+      - 18555:18555
+    healthcheck:
+      test: ["CMD", "btcctl", "--rpccert=/rpc/rpc.cert", "--rpcserver=localhost:18334", "getinfo"]
+      interval: 30s
+      timeout: 3s
+      retries: 10
+    # docker-compose exec btcd btcctl --rpccert=/rpc/rpc.cert --rpcserver=localhost:18334 addnode bitcoind:18555 add
+    # docker-compose exec btcd btcctl --rpccert=/rpc/rpc.cert --rpcserver=localhost:18334 generate 400
+    command: btcd --datadir=/root/.btcd --configfile=/root/.btcd/btcd.conf
+
+  lnd:
+    image: lnd
+    build: services/lnd
+    container_name: lnd
+    networks:
+      - default
+    depends_on:
+      - btcd
+    volumes:
+      - ${MOUNT_PATH:-.}/services/lnd/files/lnd.conf:/root/.lnd/lnd.conf:rw
+      - ${MOUNT_PATH:-.}/data/lnd/data:/root/.lnd/data:rw
+      - ${MOUNT_PATH:-.}/rpc:/rpc:rw
+    ports:
+      - 8080:8080 # peer port
+      - 10009:10009 # rpc port
+      - 9735:9735 # protocol port
+    healthcheck:
+      test: ["CMD", "lncli", "--tlscertpath=/rpc/lnd.cert", "--no-macaroons", "getinfo"]
+      interval: 30s
+      timeout: 3s
+      retries: 10
+    # docker-compose exec lnd lncli --tlscertpath=/rpc/lnd.cert --macaroonpath=/rpc/admin.macaroon getinfo
+    restart: always
+    command: lnd --configfile=/root/.lnd/lnd.conf --datadir=/root/.lnd/data --rpclisten=0.0.0.0:10009
+
+  lnd-server:
+    image: lnd
+    build: services/lnd
+    container_name: lnd-server
+    networks:
+      - default
+    depends_on:
+      - btcd
+    volumes:
+      - ${MOUNT_PATH:-.}/services/lnd/files/lnd.conf:/root/.lnd/lnd.conf:rw
+      - ${MOUNT_PATH:-.}/data/lnd-server/data:/root/.lnd/data:rw
+      - ${MOUNT_PATH:-.}/rpc:/rpc:rw
+    ports:
+      - 38080:8080 # peer port
+      - 30009:10009 # rpc port
+      - 39735:9735 # protocol port
+    healthcheck:
+      test: ["CMD", "lncli", "--tlscertpath=/rpc/lnd.cert", "--no-macaroons", "getinfo"]
+      interval: 30s
+      timeout: 3s
+      retries: 10
+    # docker-compose exec lnd lncli --tlscertpath=/rpc/lnd.cert --macaroonpath=/rpc/admin.macaroon getinfo
+    restart: always
+    command: lnd --configfile=/root/.lnd/lnd.conf --datadir=/root/.lnd/data --rpclisten=0.0.0.0:10009
+
+  lnd-user:
+    image: lnd
+    build: services/lnd
+    container_name: lnd-user
+    networks:
+      - default
+    depends_on:
+      - btcd
+    volumes:
+      - ${MOUNT_PATH:-.}/services/lnd/files/lnd.conf:/root/.lnd/lnd.conf:rw
+      - ${MOUNT_PATH:-.}/data/lnd-user/data:/root/.lnd/data:rw
+      - ${MOUNT_PATH:-.}/rpc:/rpc:rw
+    ports:
+      - 28080:8080 # peer port
+      - 20009:10009 # rpc port
+      - 29735:9735 # protocol port
+    healthcheck:
+      test: ["CMD", "lncli", "--tlscertpath=/rpc/lnd.cert", "--no-macaroons", "getinfo"]
+      interval: 30s
+      timeout: 3s
+      retries: 10
+    # docker-compose exec lnd lncli --tlscertpath=/rpc/lnd.cert --macaroonpath=/rpc/admin.macaroon getinfo
+    restart: always
+    command: lnd --configfile=/root/.lnd/lnd.conf --datadir=/root/.lnd/data --rpclisten=0.0.0.0:10009
+
+networks:
+  default:
